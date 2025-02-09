@@ -269,16 +269,16 @@
     
     // getSavedCardContentFromElement:
     // Returns a one‑line string with the card’s front and back content (tab‑separated)
-    // using the original text (with fixed image paths) and stripping outer <div> tags.
+    // using the original text (with fixed image paths for export) and stripping outer <div> tags.
     function getSavedCardContentFromElement(el) {
-      let front = fixImagePaths(el.dataset.front);
-      let back = fixImagePaths(el.dataset.back);
+      let front = fixImagePathsForExport(el.dataset.front);
+      let back = fixImagePathsForExport(el.dataset.back);
       front = front.replace(/^<div>(.*)<\/div>$/i, '$1').replace(/\n/g, ' ').trim();
       back = back.replace(/^<div>(.*)<\/div>$/i, '$1').replace(/\n/g, ' ').trim();
       return front + "\t" + back;
     }
     
-    // fixImagePaths: removes extra quotes and prefixes src with "media/" when needed.
+    // fixImagePaths: fixes quotes and prefixes src with "media/" when needed.
     function fixImagePaths(html) {
       if ((html.startsWith('"') && html.endsWith('"')) || (html.startsWith("'") && html.endsWith("'"))) {
         html = html.slice(1, -1);
@@ -291,6 +291,13 @@
         return `<img ${pre}src="${src}"${post}>`;
       });
       return html;
+    }
+    
+    // fixImagePathsForExport: calls fixImagePaths then removes the "media/" prefix from image src attributes.
+    function fixImagePathsForExport(html) {
+      let fixed = fixImagePaths(html);
+      fixed = fixed.replace(/src="media\//g, 'src="');
+      return fixed;
     }
     
     // processCloze: processes cloze deletions using the cardColor.
