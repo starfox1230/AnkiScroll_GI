@@ -30,21 +30,22 @@
       padding: 0 10px;
       box-sizing: border-box;
     }
-    /* Card styles – increased vertical margin for more spacing.
-       The box shadow is set dynamically and we also set a CSS variable for the card's neon highlight. */
+    /* Card styles – increased spacing */
     .card {
       background: #1a1a1a;
       padding: 20px;
-      margin: 20px 0;
+      margin: 20px 0; /* extra vertical spacing */
       border-radius: 12px;
       overflow-wrap: break-word;
+      position: relative; /* for positioning the star */
+      /* The box shadow and --card-highlight will be set dynamically */
     }
     .front,
     .back {
       font-size: 1.2em;
       margin-bottom: 10px;
     }
-    /* Responsive images using the card's neon color via CSS variable */
+    /* Responsive images using card highlight variable */
     img {
       max-width: 100%;
       height: auto;
@@ -53,7 +54,77 @@
       border-radius: 10px;
       box-shadow: 0 0 10px var(--card-highlight);
     }
-    /* Hidden cloze deletions: clickable, bright red */
+    /* Star in the top right of a card */
+    .card-star {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-size: 24px;
+      cursor: pointer;
+      color: #555555; /* dark gray initially */
+      user-select: none;
+    }
+    /* Floating saved cards button */
+    #saved-cards-button {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 32px;
+      background: #1a1a1a;
+      padding: 10px;
+      border-radius: 50%;
+      color: #555555;
+      cursor: pointer;
+      box-shadow: 0 0 10px #555555;
+      z-index: 1000;
+    }
+    /* Overlay for saved cards */
+    #saved-cards-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    #saved-cards-content {
+      background: #1a1a1a;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 90%;
+      max-height: 80%;
+      display: flex;
+      flex-direction: column;
+    }
+    #saved-cards-content textarea {
+      width: 100%;
+      height: 300px;
+      margin: 10px 0;
+      resize: none;
+      font-family: monospace;
+      font-size: 14px;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+    }
+    #saved-cards-content button {
+      background: #00ffcc;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    #saved-cards-content #close-overlay {
+      background: #ff5555;
+    }
+    /* Cloze deletion styles */
+    /* Hidden cloze: clickable star that starts bright red */
     .cloze-hidden {
       color: #FF5555;
       cursor: pointer;
@@ -63,7 +134,7 @@
       border: 1px dashed #FF5555;
       border-radius: 4px;
     }
-    /* Revealed cloze (clicked hidden cloze turns green) */
+    /* Revealed cloze (when hidden cloze is clicked) turns green */
     .cloze-revealed {
       color: #00ffcc;
       text-shadow: 0 0 10px #00ffcc;
@@ -71,10 +142,9 @@
       border: 1px solid #00ffcc;
       border-radius: 4px;
     }
-    /* Automatically revealed cloze deletions (from non-hidden groups)
-       get their inline style from the card’s neon color. */
+    /* Automatically revealed cloze (non-hidden groups) are styled inline */
     .cloze-random {
-      /* Styles are applied inline in the HTML based on the card's neon color. */
+      /* Inline styles applied via JavaScript */
     }
     /* Mobile adjustments */
     @media (max-width: 600px) {
@@ -88,9 +158,27 @@
 <body>
   <h2>Anki Doom Scrolling</h2>
   <div id="card-container"></div>
-
+  
+  <!-- Floating button for showing saved cards -->
+  <div id="saved-cards-button">★</div>
+  
+  <!-- Overlay for saved cards -->
+  <div id="saved-cards-overlay">
+    <div id="saved-cards-content">
+      <div style="display:flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Saved Cards</h3>
+        <button id="close-overlay">X</button>
+      </div>
+      <textarea id="saved-cards-text" readonly></textarea>
+      <button id="copy-cards">Copy</button>
+    </div>
+  </div>
+  
   <script>
-    // Array of neon colors for the card theme (for non-hidden cloze items and box shadow)
+    // Global array to store saved card HTML
+    let savedCards = [];
+    
+    // Array of neon colors for card themes (for non-hidden cloze items and box shadow)
     const neonColors = [
       "#39FF14", // neon green
       "#0FF0FC", // neon cyan
@@ -100,19 +188,19 @@
       "#FFD700", // gold
       "#FF00FF"  // magenta
     ];
-
-    const REVEALED_CLOZE_COLOR = "#00ffcc"; // constant green for revealed cloze (after click)
-    const HIDDEN_CLOZE_INITIAL_COLOR = "#FF5555"; // bright red for hidden cloze (before click)
-
+    
+    const REVEALED_CLOZE_COLOR = "#00ffcc"; // constant green for revealed cloze
+    const HIDDEN_CLOZE_INITIAL_COLOR = "#FF5555"; // bright red for hidden cloze
+    
     async function loadDeck() {
       try {
         const response = await fetch('anki_deck.txt');
         const text = await response.text();
         const lines = text.split('\n');
-
+        
         // Filter out header lines (starting with '#') and empty lines.
         const validLines = lines.filter(line => line && !line.startsWith('#'));
-
+        
         // Parse each valid line into an object with front and back properties.
         const deckCards = validLines
           .map(line => line.split('\t'))
@@ -121,51 +209,68 @@
             front: parts[0].trim(),
             back: parts[1].trim()
           }));
-
+        
         // Shuffle and display the deck cards.
         displayCards(shuffleArray(deckCards));
       } catch (error) {
         console.error('Error loading deck:', error);
       }
     }
-
+    
     function displayCards(cards) {
       const container = document.getElementById('card-container');
       cards.forEach(card => {
         const cardElement = document.createElement('div');
         cardElement.className = 'card';
-
+        
         // Pick a random neon color for this card.
         const cardColor = neonColors[Math.floor(Math.random() * neonColors.length)];
         // Set the card's box shadow and CSS variable for highlight.
         cardElement.style.boxShadow = "0 0 15px " + cardColor;
         cardElement.style.setProperty('--card-highlight', cardColor);
-
-        // Process cloze deletions on both front and back, passing the cardColor.
+        
+        // Process cloze deletions on both front and back, passing cardColor.
         const processedFront = processCloze(fixImagePaths(card.front), cardColor);
         const processedBack = processCloze(fixImagePaths(card.back), cardColor);
         cardElement.innerHTML = `
           <div class="front">${processedFront}</div>
           <div class="back">${processedBack}</div>
         `;
+        
+        // Create and append the star icon at the top right of the card.
+        const star = document.createElement('span');
+        star.className = 'card-star';
+        star.innerHTML = '☆';
+        // When tapped, change to filled star, change color to cardColor, and save this card.
+        star.addEventListener('click', function(e) {
+          e.stopPropagation();
+          // Only save once per card.
+          if (!this.classList.contains('saved')) {
+            this.classList.add('saved');
+            this.innerHTML = '★';
+            this.style.color = cardColor;
+            this.style.textShadow = '0 0 10px ' + cardColor;
+            // Save the card's outer HTML (you can adjust what gets saved if desired)
+            savedCards.push(cardElement.outerHTML);
+          }
+        });
+        cardElement.appendChild(star);
+        
         container.appendChild(cardElement);
       });
       // Attach event listeners to clickable (hidden) cloze spans.
       attachClozeListeners();
     }
-
+    
     // fixImagePaths:
     // 1. Remove outer quotes if present.
     // 2. Fix extra quotes in src attributes.
     // 3. Prefix src values with "media/" if needed.
     function fixImagePaths(html) {
-      // Remove outer quotes if present.
       if ((html.startsWith('"') && html.endsWith('"')) || (html.startsWith("'") && html.endsWith("'"))) {
         html = html.slice(1, -1);
       }
-      // Replace extra quotes in src attributes.
       html = html.replace(/src=["']{2,}(.*?)["']{2,}/g, 'src="$1"');
-      // Prefix src values with "media/" if needed.
       html = html.replace(/<img\s+([^>]*?)src="([^"]+)"([^>]*?)>/g, function(match, pre, src, post) {
         if (!src.startsWith("media/") && !src.startsWith("http") && !src.startsWith("/")) {
           src = "media/" + src;
@@ -174,7 +279,7 @@
       });
       return html;
     }
-
+    
     // processCloze:
     // Accepts the card's HTML and the cardColor.
     // Randomly chooses one cloze group to hide (clickable, styled in bright red),
@@ -183,42 +288,38 @@
       const regex = /\{\{c(\d+)::(.*?)\}\}/g;
       const matches = [...html.matchAll(regex)];
       if (matches.length === 0) return html;
-
+      
       // Collect all cloze group numbers in this card.
       const groups = new Set();
       matches.forEach(match => groups.add(match[1]));
       const groupsArr = Array.from(groups);
       // Randomly select one group to hide.
       const hiddenGroup = groupsArr[Math.floor(Math.random() * groupsArr.length)];
-
-      // Replace each cloze deletion.
+      
       return html.replace(regex, (match, clozeNumber, content) => {
         let parts = content.split('::');
         let answer = parts[0].trim();
         let hint = parts.length > 1 ? parts[1].trim() : '...';
         if (clozeNumber === hiddenGroup) {
-          // Hidden group: output clickable span in bright red.
           return '<span class="cloze-hidden" data-answer=' + JSON.stringify(answer) + '>[' + hint + ']</span>';
         } else {
-          // Other groups: output immediately revealed span styled with the cardColor.
           return '<span class="cloze-random" style="color: ' + cardColor + '; text-shadow: 0 0 10px ' + cardColor + '; border: 1px solid ' + cardColor + '; padding: 2px 4px; border-radius: 4px;">' + answer + '</span>';
         }
       });
     }
-
+    
     // Attach event listeners to all clickable (hidden) cloze spans.
     function attachClozeListeners() {
       const clozeSpans = document.querySelectorAll('.cloze-hidden');
       clozeSpans.forEach(span => {
         span.addEventListener('click', function() {
-          // When clicked, replace the hint with the answer and change its styling.
           this.innerHTML = this.dataset.answer;
           this.classList.remove("cloze-hidden");
           this.classList.add("cloze-revealed");
         });
       });
     }
-
+    
     // Simple Fisher–Yates shuffle.
     function shuffleArray(array) {
       for (let i = array.length - 1; i > 0; i--) {
@@ -227,7 +328,32 @@
       }
       return array;
     }
-
+    
+    // Saved cards overlay functionality.
+    const savedCardsButton = document.getElementById('saved-cards-button');
+    const savedCardsOverlay = document.getElementById('saved-cards-overlay');
+    const savedCardsText = document.getElementById('saved-cards-text');
+    const closeOverlayButton = document.getElementById('close-overlay');
+    const copyCardsButton = document.getElementById('copy-cards');
+    
+    savedCardsButton.addEventListener('click', function() {
+      // Populate the textarea with the saved cards, one per line.
+      savedCardsText.value = savedCards.join('\n');
+      savedCardsOverlay.style.display = 'flex';
+    });
+    
+    closeOverlayButton.addEventListener('click', function() {
+      savedCardsOverlay.style.display = 'none';
+    });
+    
+    copyCardsButton.addEventListener('click', function() {
+      navigator.clipboard.writeText(savedCardsText.value).then(() => {
+        alert("Saved cards copied to clipboard!");
+      }).catch(err => {
+        alert("Error copying text: " + err);
+      });
+    });
+    
     document.addEventListener('DOMContentLoaded', loadDeck);
   </script>
 </body>
