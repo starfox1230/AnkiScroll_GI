@@ -245,14 +245,27 @@
       attachClozeListeners();
     }
 
-    // Fix image paths: remove outer quotes and replace extra quotes in src attributes.
+    // Fix image paths:
+    // 1. Remove outer quotes if present.
+    // 2. Replace extra quotes in src attribute.
+    // 3. Prefix src values with "media/" if needed.
     function fixImagePaths(html) {
       // Remove outer quotes if present (handles both " and ').
       if ((html.startsWith('"') && html.endsWith('"')) || (html.startsWith("'") && html.endsWith("'"))) {
         html = html.slice(1, -1);
       }
-      // Replace occurrences of src=""..."" or src==''...'' with src="..."
-      return html.replace(/src=["']{2,}(.*?)["']{2,}/g, 'src="$1"');
+      // Replace occurrences of extra quotes in src attribute.
+      html = html.replace(/src=["']{2,}(.*?)["']{2,}/g, 'src="$1"');
+      
+      // Update img src attribute to prefix with "media/" if it isn't already absolute.
+      html = html.replace(/<img\s+([^>]*?)src="([^"]+)"([^>]*?)>/g, function(match, pre, src, post) {
+        // If src does not start with "media/", "http", or a leading slash, prefix it.
+        if (!src.startsWith("media/") && !src.startsWith("http") && !src.startsWith("/")) {
+          src = "media/" + src;
+        }
+        return `<img ${pre}src="${src}"${post}>`;
+      });
+      return html;
     }
 
     // Process cloze deletions.
@@ -279,7 +292,7 @@
       const clozeSpans = document.querySelectorAll('.cloze');
       clozeSpans.forEach(span => {
         span.addEventListener('click', function() {
-          // Replace the clickable content with the answer
+          // Replace the clickable content with the answer.
           this.innerHTML = this.dataset.answer;
           this.className = 'cloze-revealed';
         });
