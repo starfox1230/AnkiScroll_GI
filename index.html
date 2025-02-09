@@ -63,13 +63,12 @@
       border: 1px dashed #00ffcc;
       border-radius: 4px;
     }
-    .cloze-answer {
+    .cloze-revealed {
       color: #00ffcc;
       text-shadow: 0 0 10px #00ffcc;
       padding: 2px 4px;
       border: 1px solid #00ffcc;
       border-radius: 4px;
-      margin-left: 5px;
     }
     /* Mobile adjustments */
     @media (max-width: 600px) {
@@ -92,15 +91,13 @@
         const lines = text.split('\n');
 
         // Filter out header lines (starting with '#') and empty lines.
-        const validLines = lines.filter(
-          (line) => line && !line.startsWith('#')
-        );
+        const validLines = lines.filter(line => line && !line.startsWith('#'));
 
         // Parse each valid line into an object with front and back properties.
         const deckCards = validLines
-          .map((line) => line.split('\t'))
-          .filter((parts) => parts.length >= 2)
-          .map((parts) => ({
+          .map(line => line.split('\t'))
+          .filter(parts => parts.length >= 2)
+          .map(parts => ({
             front: parts[0].trim(),
             back: parts[1].trim()
           }));
@@ -232,7 +229,7 @@
 
     function displayCards(cards) {
       const container = document.getElementById('card-container');
-      cards.forEach((card) => {
+      cards.forEach(card => {
         const cardElement = document.createElement('div');
         cardElement.className = 'card';
         // Process both front and back for images and cloze deletions.
@@ -246,27 +243,40 @@
       });
     }
 
-    // Fix doubled quotes in image src attributes.
+    // Fix image paths: remove outer quotes and replace doubled quotes in src attributes.
     function fixImagePaths(html) {
+      // Remove outer quotes if present.
+      if (html.startsWith('"') && html.endsWith('"')) {
+        html = html.slice(1, -1);
+      }
+      // Replace occurrences of src=""..."" with src="..."
       return html.replace(/src=""(.*?)""/g, 'src="$1"');
     }
 
-    // Process cloze deletions into clickable spans.
+    // Process cloze deletions.
+    // Recognizes both simple cloze: {{c1::answer}}
+    // and cloze with a hint: {{c1::answer::hint}}
     function processCloze(html) {
-      return html.replace(/\{\{c\d+::(.*?)\}\}/g, function(match, p1) {
-        return '<span class="cloze" onclick="toggleCloze(this)">[...]</span>' +
-               '<span class="cloze-answer" style="display:none;">' + p1 + '</span>';
+      return html.replace(/\{\{c\d+::(.*?)\}\}/g, function(match, content) {
+        let parts = content.split('::');
+        let answer, hint;
+        if (parts.length === 1) {
+          answer = parts[0].trim();
+          hint = '...';
+        } else {
+          answer = parts[0].trim();
+          hint = parts[1].trim();
+        }
+        // Use JSON.stringify to safely encode the answer text.
+        return '<span class="cloze" onclick="revealCloze(this, ' + JSON.stringify(answer) + ')">[' + hint + ']</span>';
       });
     }
 
-    // Toggle the display of the cloze answer when the cloze text is clicked.
-    function toggleCloze(element) {
-      const answer = element.nextElementSibling;
-      if (answer.style.display === 'none' || answer.style.display === '') {
-        answer.style.display = 'inline';
-      } else {
-        answer.style.display = 'none';
-      }
+    // When a cloze span is clicked, replace its content with the answer.
+    function revealCloze(element, answer) {
+      element.innerHTML = answer;
+      element.onclick = null;
+      element.className = "cloze-revealed";
     }
 
     // Simple shuffle algorithm.
