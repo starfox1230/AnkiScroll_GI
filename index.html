@@ -30,22 +30,21 @@
       padding: 0 10px;
       box-sizing: border-box;
     }
-    /* Card styles – increased spacing */
+    /* Card styles – extra vertical spacing and relative positioning for the star */
     .card {
       background: #1a1a1a;
       padding: 20px;
-      margin: 20px 0; /* extra vertical spacing */
+      margin: 20px 0;
       border-radius: 12px;
       overflow-wrap: break-word;
-      position: relative; /* for positioning the star */
-      /* The box shadow and --card-highlight will be set dynamically */
+      position: relative;
     }
     .front,
     .back {
       font-size: 1.2em;
       margin-bottom: 10px;
     }
-    /* Responsive images using card highlight variable */
+    /* Responsive images using the card’s CSS variable for highlight */
     img {
       max-width: 100%;
       height: auto;
@@ -61,22 +60,21 @@
       right: 8px;
       font-size: 24px;
       cursor: pointer;
-      color: #555555; /* dark gray initially */
+      color: #555555; /* unsaved state */
       user-select: none;
+      transition: color 0.2s, text-shadow 0.2s;
     }
-    /* Floating saved cards button */
+    /* Floating saved cards button – minimal style */
     #saved-cards-button {
       position: fixed;
       bottom: 20px;
       right: 20px;
-      font-size: 32px;
-      background: #1a1a1a;
-      padding: 10px;
-      border-radius: 50%;
-      color: #555555;
+      font-size: 24px;
+      color: #aaa;
       cursor: pointer;
-      box-shadow: 0 0 10px #555555;
       z-index: 1000;
+      background: transparent;
+      border: none;
     }
     /* Overlay for saved cards */
     #saved-cards-overlay {
@@ -85,7 +83,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       display: none;
       align-items: center;
       justify-content: center;
@@ -100,21 +98,23 @@
       display: flex;
       flex-direction: column;
     }
-    #saved-cards-content textarea {
-      width: 100%;
-      height: 300px;
+    #saved-cards-content pre {
+      background: #333;
+      color: #fff;
+      padding: 10px;
+      border-radius: 4px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      flex-grow: 1;
       margin: 10px 0;
-      resize: none;
       font-family: monospace;
       font-size: 14px;
-      padding: 10px;
-      border: none;
-      border-radius: 4px;
     }
     #saved-cards-content button {
       background: #00ffcc;
       border: none;
-      padding: 10px;
+      padding: 10px 15px;
       border-radius: 4px;
       cursor: pointer;
       font-weight: bold;
@@ -124,7 +124,7 @@
       background: #ff5555;
     }
     /* Cloze deletion styles */
-    /* Hidden cloze: clickable star that starts bright red */
+    /* Hidden cloze: clickable, bright red; stores original hint */
     .cloze-hidden {
       color: #FF5555;
       cursor: pointer;
@@ -134,7 +134,7 @@
       border: 1px dashed #FF5555;
       border-radius: 4px;
     }
-    /* Revealed cloze (when hidden cloze is clicked) turns green */
+    /* Revealed cloze (when toggled) in green */
     .cloze-revealed {
       color: #00ffcc;
       text-shadow: 0 0 10px #00ffcc;
@@ -142,7 +142,7 @@
       border: 1px solid #00ffcc;
       border-radius: 4px;
     }
-    /* Automatically revealed cloze (non-hidden groups) are styled inline */
+    /* Automatically revealed cloze (non-hidden groups) get inline styling */
     .cloze-random {
       /* Inline styles applied via JavaScript */
     }
@@ -159,26 +159,29 @@
   <h2>Anki Doom Scrolling</h2>
   <div id="card-container"></div>
   
-  <!-- Floating button for showing saved cards -->
-  <div id="saved-cards-button">★</div>
+  <!-- Floating button for saved cards -->
+  <button id="saved-cards-button">★</button>
   
   <!-- Overlay for saved cards -->
   <div id="saved-cards-overlay">
     <div id="saved-cards-content">
       <div style="display:flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0;">Saved Cards</h3>
+        <h3 style="margin: 0; color: #fff;">Saved Cards</h3>
         <button id="close-overlay">X</button>
       </div>
-      <textarea id="saved-cards-text" readonly></textarea>
-      <button id="copy-cards">Copy</button>
+      <pre id="saved-cards-text"></pre>
+      <div style="text-align: right;">
+        <button id="copy-cards">Copy</button>
+      </div>
     </div>
   </div>
   
   <script>
-    // Global array to store saved card HTML
-    let savedCards = [];
+    // Global arrays and counter
+    let savedCards = []; // Array of objects { id, content }
+    let cardCounter = 0;
     
-    // Array of neon colors for card themes (for non-hidden cloze items and box shadow)
+    // Neon colors for card themes
     const neonColors = [
       "#39FF14", // neon green
       "#0FF0FC", // neon cyan
@@ -189,7 +192,7 @@
       "#FF00FF"  // magenta
     ];
     
-    const REVEALED_CLOZE_COLOR = "#00ffcc"; // constant green for revealed cloze
+    const REVEALED_CLOZE_COLOR = "#00ffcc"; // green for revealed cloze
     const HIDDEN_CLOZE_INITIAL_COLOR = "#FF5555"; // bright red for hidden cloze
     
     async function loadDeck() {
@@ -197,11 +200,7 @@
         const response = await fetch('anki_deck.txt');
         const text = await response.text();
         const lines = text.split('\n');
-        
-        // Filter out header lines (starting with '#') and empty lines.
         const validLines = lines.filter(line => line && !line.startsWith('#'));
-        
-        // Parse each valid line into an object with front and back properties.
         const deckCards = validLines
           .map(line => line.split('\t'))
           .filter(parts => parts.length >= 2)
@@ -209,8 +208,6 @@
             front: parts[0].trim(),
             back: parts[1].trim()
           }));
-        
-        // Shuffle and display the deck cards.
         displayCards(shuffleArray(deckCards));
       } catch (error) {
         console.error('Error loading deck:', error);
@@ -222,14 +219,16 @@
       cards.forEach(card => {
         const cardElement = document.createElement('div');
         cardElement.className = 'card';
+        cardElement.dataset.cardId = cardCounter++;
+        // Store original front/back for saving later.
+        cardElement.dataset.front = card.front;
+        cardElement.dataset.back = card.back;
         
-        // Pick a random neon color for this card.
         const cardColor = neonColors[Math.floor(Math.random() * neonColors.length)];
-        // Set the card's box shadow and CSS variable for highlight.
         cardElement.style.boxShadow = "0 0 15px " + cardColor;
         cardElement.style.setProperty('--card-highlight', cardColor);
+        cardElement.dataset.cardColor = cardColor;
         
-        // Process cloze deletions on both front and back, passing cardColor.
         const processedFront = processCloze(fixImagePaths(card.front), cardColor);
         const processedBack = processCloze(fixImagePaths(card.back), cardColor);
         cardElement.innerHTML = `
@@ -237,35 +236,49 @@
           <div class="back">${processedBack}</div>
         `;
         
-        // Create and append the star icon at the top right of the card.
+        // Create the star icon for saving.
         const star = document.createElement('span');
         star.className = 'card-star';
         star.innerHTML = '☆';
-        // When tapped, change to filled star, change color to cardColor, and save this card.
         star.addEventListener('click', function(e) {
           e.stopPropagation();
-          // Only save once per card.
-          if (!this.classList.contains('saved')) {
+          const cardId = cardElement.dataset.cardId;
+          const cardColor = cardElement.dataset.cardColor;
+          if (this.classList.contains('saved')) {
+            // Unsave: revert star style and remove card from savedCards.
+            this.classList.remove('saved');
+            this.innerHTML = '☆';
+            this.style.color = "#555555";
+            this.style.textShadow = "none";
+            savedCards = savedCards.filter(sc => sc.id !== cardId);
+          } else {
+            // Save: change star style and add card's simplified content.
             this.classList.add('saved');
             this.innerHTML = '★';
             this.style.color = cardColor;
-            this.style.textShadow = '0 0 10px ' + cardColor;
-            // Save the card's outer HTML (you can adjust what gets saved if desired)
-            savedCards.push(cardElement.outerHTML);
+            this.style.textShadow = "0 0 10px " + cardColor;
+            const content = getSavedCardContentFromElement(cardElement);
+            savedCards.push({ id: cardId, content: content });
           }
         });
         cardElement.appendChild(star);
-        
         container.appendChild(cardElement);
       });
-      // Attach event listeners to clickable (hidden) cloze spans.
       attachClozeListeners();
     }
     
-    // fixImagePaths:
-    // 1. Remove outer quotes if present.
-    // 2. Fix extra quotes in src attributes.
-    // 3. Prefix src values with "media/" if needed.
+    // getSavedCardContentFromElement:
+    // Returns a one‑line string with the card’s front and back content (tab‑separated)
+    // using the original text (with fixed image paths) and stripping outer <div> tags.
+    function getSavedCardContentFromElement(el) {
+      let front = fixImagePaths(el.dataset.front);
+      let back = fixImagePaths(el.dataset.back);
+      front = front.replace(/^<div>(.*)<\/div>$/i, '$1').replace(/\n/g, ' ').trim();
+      back = back.replace(/^<div>(.*)<\/div>$/i, '$1').replace(/\n/g, ' ').trim();
+      return front + "\t" + back;
+    }
+    
+    // fixImagePaths: removes extra quotes and prefixes src with "media/" when needed.
     function fixImagePaths(html) {
       if ((html.startsWith('"') && html.endsWith('"')) || (html.startsWith("'") && html.endsWith("'"))) {
         html = html.slice(1, -1);
@@ -280,20 +293,16 @@
       return html;
     }
     
-    // processCloze:
-    // Accepts the card's HTML and the cardColor.
-    // Randomly chooses one cloze group to hide (clickable, styled in bright red),
-    // while rendering the other cloze deletions immediately using the cardColor.
+    // processCloze: processes cloze deletions using the cardColor.
+    // One randomly chosen cloze group becomes toggleable (hidden/revealed) and stores both answer and hint.
     function processCloze(html, cardColor) {
       const regex = /\{\{c(\d+)::(.*?)\}\}/g;
       const matches = [...html.matchAll(regex)];
       if (matches.length === 0) return html;
       
-      // Collect all cloze group numbers in this card.
       const groups = new Set();
       matches.forEach(match => groups.add(match[1]));
       const groupsArr = Array.from(groups);
-      // Randomly select one group to hide.
       const hiddenGroup = groupsArr[Math.floor(Math.random() * groupsArr.length)];
       
       return html.replace(regex, (match, clozeNumber, content) => {
@@ -301,22 +310,35 @@
         let answer = parts[0].trim();
         let hint = parts.length > 1 ? parts[1].trim() : '...';
         if (clozeNumber === hiddenGroup) {
-          return '<span class="cloze-hidden" data-answer=' + JSON.stringify(answer) + '>[' + hint + ']</span>';
+          return '<span class="cloze-hidden" data-answer=' + JSON.stringify(answer) +
+                 ' data-hint=' + JSON.stringify(hint) + '>[' + hint + ']</span>';
         } else {
-          return '<span class="cloze-random" style="color: ' + cardColor + '; text-shadow: 0 0 10px ' + cardColor + '; border: 1px solid ' + cardColor + '; padding: 2px 4px; border-radius: 4px;">' + answer + '</span>';
+          return '<span class="cloze-random" style="color: ' + cardColor +
+                 '; text-shadow: 0 0 10px ' + cardColor +
+                 '; border: 1px solid ' + cardColor +
+                 '; padding: 2px 4px; border-radius: 4px;">' + answer + '</span>';
         }
       });
     }
     
-    // Attach event listeners to all clickable (hidden) cloze spans.
+    // Attach event listeners to cloze elements that are toggleable.
     function attachClozeListeners() {
-      const clozeSpans = document.querySelectorAll('.cloze-hidden');
-      clozeSpans.forEach(span => {
-        span.addEventListener('click', function() {
-          this.innerHTML = this.dataset.answer;
-          this.classList.remove("cloze-hidden");
-          this.classList.add("cloze-revealed");
-        });
+      const clozeElements = document.querySelectorAll('.cloze-hidden, .cloze-revealed');
+      clozeElements.forEach(el => {
+        // Only attach toggle behavior if the element has a stored hint (i.e. was toggleable).
+        if (el.dataset.hint) {
+          el.addEventListener('click', function() {
+            if (this.classList.contains('cloze-hidden')) {
+              this.innerHTML = this.dataset.answer;
+              this.classList.remove('cloze-hidden');
+              this.classList.add('cloze-revealed');
+            } else if (this.classList.contains('cloze-revealed')) {
+              this.innerHTML = '[' + this.dataset.hint + ']';
+              this.classList.remove('cloze-revealed');
+              this.classList.add('cloze-hidden');
+            }
+          });
+        }
       });
     }
     
@@ -337,8 +359,8 @@
     const copyCardsButton = document.getElementById('copy-cards');
     
     savedCardsButton.addEventListener('click', function() {
-      // Populate the textarea with the saved cards, one per line.
-      savedCardsText.value = savedCards.join('\n');
+      // Join saved card lines.
+      savedCardsText.textContent = savedCards.map(sc => sc.content).join('\n');
       savedCardsOverlay.style.display = 'flex';
     });
     
@@ -347,7 +369,8 @@
     });
     
     copyCardsButton.addEventListener('click', function() {
-      navigator.clipboard.writeText(savedCardsText.value).then(() => {
+      const text = savedCardsText.textContent;
+      navigator.clipboard.writeText(text).then(() => {
         alert("Saved cards copied to clipboard!");
       }).catch(err => {
         alert("Error copying text: " + err);
