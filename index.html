@@ -30,13 +30,12 @@
       padding: 0 10px;
       box-sizing: border-box;
     }
-    /* Card styles */
+    /* Card styles – note that the box shadow will be set dynamically */
     .card {
       background: #1a1a1a;
       padding: 20px;
       margin: 10px 0;
       border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0, 255, 204, 0.7);
       overflow-wrap: break-word;
     }
     .front,
@@ -44,7 +43,7 @@
       font-size: 1.2em;
       margin-bottom: 10px;
     }
-    /* Ensure images are responsive */
+    /* Responsive images */
     img {
       max-width: 100%;
       height: auto;
@@ -53,27 +52,28 @@
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
     }
-    /* Hidden cloze deletions: clickable and glowing purple */
+    /* Hidden cloze deletions: clickable, bright red */
     .cloze-hidden {
-      color: #bf00ff;
+      color: #FF5555;
       cursor: pointer;
       font-weight: bold;
-      text-shadow: 0 0 10px #bf00ff;
+      text-shadow: 0 0 10px #FF5555;
       padding: 2px 4px;
-      border: 1px dashed #bf00ff;
+      border: 1px dashed #FF5555;
       border-radius: 4px;
     }
-    /* When a hidden cloze is revealed, it stays purple */
-    .cloze-hidden.revealed {
-      border: 1px solid #bf00ff;
-    }
-    /* Revealed cloze deletions for groups not hidden: green */
-    .cloze-green {
+    /* Revealed cloze (clicked hidden cloze turns green) */
+    .cloze-revealed {
       color: #00ffcc;
       text-shadow: 0 0 10px #00ffcc;
       padding: 2px 4px;
       border: 1px solid #00ffcc;
       border-radius: 4px;
+    }
+    /* The automatically revealed cloze deletions (from non-hidden groups)
+       will receive inline styles (using the card’s random neon color). */
+    .cloze-random {
+      /* No fixed styling here */
     }
     /* Mobile adjustments */
     @media (max-width: 600px) {
@@ -89,6 +89,20 @@
   <div id="card-container"></div>
 
   <script>
+    // Array of neon colors for the card theme (for non-hidden cloze items and box shadow)
+    const neonColors = [
+      "#39FF14", // neon green
+      "#0FF0FC", // neon cyan
+      "#FF6EC7", // neon pink
+      "#CCFF00", // neon lime
+      "#FF1493", // deep pink
+      "#FFD700", // gold
+      "#FF00FF"  // magenta
+    ];
+
+    const REVEALED_CLOZE_COLOR = "#00ffcc"; // constant green for revealed cloze (after click)
+    const HIDDEN_CLOZE_INITIAL_COLOR = "#FF5555"; // bright red for hidden cloze (before click)
+
     async function loadDeck() {
       try {
         const response = await fetch('anki_deck.txt');
@@ -107,7 +121,7 @@
             back: parts[1].trim()
           }));
 
-        // Shuffle the deck cards for randomness and display them.
+        // Shuffle and display the deck cards.
         displayCards(shuffleArray(deckCards));
       } catch (error) {
         console.error('Error loading deck:', error);
@@ -119,25 +133,31 @@
       cards.forEach(card => {
         const cardElement = document.createElement('div');
         cardElement.className = 'card';
-        // Process both front and back for images and cloze deletions.
-        const processedFront = processCloze(fixImagePaths(card.front));
-        const processedBack = processCloze(fixImagePaths(card.back));
+
+        // Pick a random neon color for this card.
+        const cardColor = neonColors[Math.floor(Math.random() * neonColors.length)];
+        // Set the card's box shadow to match the cardColor.
+        cardElement.style.boxShadow = "0 0 15px " + cardColor;
+
+        // Process cloze deletions on both front and back, passing the cardColor.
+        const processedFront = processCloze(fixImagePaths(card.front), cardColor);
+        const processedBack = processCloze(fixImagePaths(card.back), cardColor);
         cardElement.innerHTML = `
           <div class="front">${processedFront}</div>
           <div class="back">${processedBack}</div>
         `;
         container.appendChild(cardElement);
       });
-      // Attach event listeners to clickable cloze spans.
+      // Attach event listeners to clickable (hidden) cloze spans.
       attachClozeListeners();
     }
 
-    // Fix image paths:
+    // fixImagePaths:
     // 1. Remove outer quotes if present.
-    // 2. Replace extra quotes in src attributes.
-    // 3. Prefix src values with "media/" if not already absolute.
+    // 2. Fix extra quotes in src attributes.
+    // 3. Prefix src values with "media/" if needed.
     function fixImagePaths(html) {
-      // Remove outer quotes if present (handles both " and ').
+      // Remove outer quotes if present.
       if ((html.startsWith('"') && html.endsWith('"')) || (html.startsWith("'") && html.endsWith("'"))) {
         html = html.slice(1, -1);
       }
@@ -153,17 +173,16 @@
       return html;
     }
 
-    // Process cloze deletions.
-    // This function finds all cloze markers (e.g. {{c1::...}}) in the text,
-    // then chooses one cloze group (like "c1", "c2", etc.) at random to hide,
-    // while revealing the others immediately in green.
-    function processCloze(html) {
+    // processCloze:
+    // Accepts the card's HTML and the cardColor.
+    // Randomly chooses one cloze group to hide (clickable, styled in bright red),
+    // while rendering the other cloze deletions immediately using the cardColor.
+    function processCloze(html, cardColor) {
       const regex = /\{\{c(\d+)::(.*?)\}\}/g;
       const matches = [...html.matchAll(regex)];
-      if (matches.length === 0) {
-        return html;
-      }
-      // Collect the cloze group numbers found in this card.
+      if (matches.length === 0) return html;
+
+      // Collect all cloze group numbers in this card.
       const groups = new Set();
       matches.forEach(match => groups.add(match[1]));
       const groupsArr = Array.from(groups);
@@ -176,23 +195,25 @@
         let answer = parts[0].trim();
         let hint = parts.length > 1 ? parts[1].trim() : '...';
         if (clozeNumber === hiddenGroup) {
-          // For the chosen hidden group, output a clickable span in purple.
+          // Hidden group: output clickable span in bright red.
           return '<span class="cloze-hidden" data-answer=' + JSON.stringify(answer) + '>[' + hint + ']</span>';
         } else {
-          // Other groups: show the answer immediately in green.
-          return '<span class="cloze-green">' + answer + '</span>';
+          // Other groups: output immediately revealed span styled with cardColor.
+          return '<span class="cloze-random" style="color: ' + cardColor + '; text-shadow: 0 0 10px ' + cardColor + '; border: 1px solid ' + cardColor + '; padding: 2px 4px; border-radius: 4px;">' + answer + '</span>';
         }
       });
     }
 
-    // Attach event listeners to all clickable cloze-hidden spans.
+    // Attach event listeners to all clickable (hidden) cloze spans.
     function attachClozeListeners() {
       const clozeSpans = document.querySelectorAll('.cloze-hidden');
       clozeSpans.forEach(span => {
         span.addEventListener('click', function() {
+          // When clicked, replace the hint with the answer,
+          // and change its styling to the revealed (green) style.
           this.innerHTML = this.dataset.answer;
-          // Add a "revealed" class so it keeps the purple styling.
-          this.classList.add("revealed");
+          this.classList.remove("cloze-hidden");
+          this.classList.add("cloze-revealed");
         });
       });
     }
