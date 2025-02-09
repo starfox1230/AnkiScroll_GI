@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Anki Doom Scrolling App</title>
   <style>
+    /* Global styles */
     body {
-      font-family: 'Arial', sans-serif;
+      font-family: Arial, sans-serif;
       background-color: #0d0d0d;
       color: #ffffff;
       margin: 0;
@@ -14,6 +15,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      overflow-x: hidden;
     }
     h2 {
       color: #00ffcc;
@@ -21,35 +23,58 @@
       text-align: center;
       margin: 20px;
     }
+    /* Card container */
+    #card-container {
+      width: 100%;
+      max-width: 600px;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+    /* Card styles */
     .card {
       background: #1a1a1a;
       padding: 20px;
-      margin: 10px;
-      width: 90%;
-      max-width: 500px;
+      margin: 10px 0;
       border-radius: 12px;
       box-shadow: 0 0 15px rgba(0, 255, 204, 0.7);
-      text-align: center;
+      overflow-wrap: break-word;
     }
-    .front, .back {
+    .front,
+    .back {
       font-size: 1.2em;
       margin-bottom: 10px;
     }
-    img, .emoji {
+    /* Ensure images are responsive */
+    img {
       max-width: 100%;
       height: auto;
       display: block;
       margin: 10px auto;
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
-      font-size: 3rem;
     }
+    /* Cloze deletion styles */
+    .cloze {
+      color: #00ffcc;
+      cursor: pointer;
+      font-weight: bold;
+      text-shadow: 0 0 10px #00ffcc;
+      padding: 2px 4px;
+      border: 1px dashed #00ffcc;
+      border-radius: 4px;
+    }
+    .cloze-answer {
+      color: #00ffcc;
+      text-shadow: 0 0 10px #00ffcc;
+      padding: 2px 4px;
+      border: 1px solid #00ffcc;
+      border-radius: 4px;
+      margin-left: 5px;
+    }
+    /* Mobile adjustments */
     @media (max-width: 600px) {
-      body {
-        padding: 10px;
-      }
-      .card {
-        width: 95%;
+      .front,
+      .back {
         font-size: 1em;
       }
     }
@@ -58,7 +83,7 @@
 <body>
   <h2>Anki Doom Scrolling</h2>
   <div id="card-container"></div>
-  
+
   <script>
     async function loadDeck() {
       try {
@@ -66,75 +91,185 @@
         const text = await response.text();
         const lines = text.split('\n');
 
-        // Filter out header lines and empty lines
-        const validLines = lines.filter(line => line && !line.startsWith('#'));
-        
-        // Parse each valid line into an object with front and back properties
+        // Filter out header lines (starting with '#') and empty lines.
+        const validLines = lines.filter(
+          (line) => line && !line.startsWith('#')
+        );
+
+        // Parse each valid line into an object with front and back properties.
         const deckCards = validLines
-          .map(line => line.split('\t'))
-          .filter(parts => parts.length >= 2)
-          .map(parts => ({
+          .map((line) => line.split('\t'))
+          .filter((parts) => parts.length >= 2)
+          .map((parts) => ({
             front: parts[0].trim(),
             back: parts[1].trim()
           }));
-        
-        // Define dummy cards (ensuring they have the same structure)
+
+        // Define some dummy cards (they can also include cloze deletions).
         const dummyCards = [
           { front: "What is the capital of France?", back: "Paris 🇫🇷" },
           { front: "Solve: 2 + 2", back: "4️⃣" },
-          { front: "Which animal is known as the king of the jungle?", back: "Lion 🦁" },
-          { front: "What is the chemical symbol for water?", back: "H₂O 💧" },
-          { front: "What planet is known as the Red Planet?", back: "Mars 🔴" },
-          { front: "What is the square root of 16?", back: "4️⃣" },
-          { front: "Which instrument has 88 keys?", back: "Piano 🎹" },
-          { front: "Who painted the Mona Lisa?", back: "Leonardo da Vinci 🖼️" },
-          { front: "What is the fastest land animal?", back: "Cheetah 🐆" },
-          { front: "How many continents are there?", back: "7 🌍" },
-          { front: "Who wrote 'Romeo and Juliet'?", back: "William Shakespeare 📜" },
-          { front: "What gas do plants absorb from the atmosphere?", back: "Carbon dioxide 🌿" },
-          { front: "What is the capital of Japan?", back: "Tokyo 🏯" },
-          { front: "What is the chemical symbol for gold?", back: "Au 🏆" },
-          { front: "What is the largest ocean?", back: "Pacific Ocean 🌊" },
-          { front: "What is the smallest planet in the Solar System?", back: "Mercury 🪐" },
-          { front: "How many legs does a spider have?", back: "8 🕷️" },
-          { front: "Who discovered gravity?", back: "Isaac Newton 🍏" },
-          { front: "What is the national bird of the United States?", back: "Bald Eagle 🦅" },
-          { front: "What is the hardest natural substance on Earth?", back: "Diamond 💎" },
-          { front: "Which gas is most abundant in Earth's atmosphere?", back: "Nitrogen 🌬️" },
-          { front: "What is the main ingredient in sushi?", back: "Rice 🍣" },
-          { front: "How many players are on a soccer team?", back: "11 ⚽" },
-          { front: "What is the national flower of Japan?", back: "Cherry Blossom 🌸" },
-          { front: "What is the tallest mountain in the world?", back: "Mount Everest 🏔️" },
-          { front: "How many bones are in the adult human body?", back: "206 🦴" },
-          { front: "What is the boiling point of water in Celsius?", back: "100°C 🌡️" },
-          { front: "Which element has the atomic number 1?", back: "Hydrogen ⚛️" },
-          { front: "What is the capital of Australia?", back: "Canberra 🇦🇺" }
+          {
+            front: "Which animal is known as the king of the jungle?",
+            back: "Lion 🦁"
+          },
+          {
+            front: "What is the chemical symbol for water?",
+            back: "H₂O 💧"
+          },
+          {
+            front: "What planet is known as the Red Planet?",
+            back: "Mars 🔴"
+          },
+          {
+            front: "What is the square root of 16?",
+            back: "4️⃣"
+          },
+          {
+            front: "Which instrument has 88 keys?",
+            back: "Piano 🎹"
+          },
+          {
+            front: "Who painted the Mona Lisa?",
+            back: "Leonardo da Vinci 🖼️"
+          },
+          {
+            front: "What is the fastest land animal?",
+            back: "Cheetah 🐆"
+          },
+          {
+            front: "How many continents are there?",
+            back: "7 🌍"
+          },
+          {
+            front: "Who wrote 'Romeo and Juliet'?",
+            back: "William Shakespeare 📜"
+          },
+          {
+            front: "What gas do plants absorb from the atmosphere?",
+            back: "Carbon dioxide 🌿"
+          },
+          {
+            front: "What is the capital of Japan?",
+            back: "Tokyo 🏯"
+          },
+          {
+            front: "What is the chemical symbol for gold?",
+            back: "Au 🏆"
+          },
+          {
+            front: "What is the largest ocean?",
+            back: "Pacific Ocean 🌊"
+          },
+          {
+            front: "What is the smallest planet in the Solar System?",
+            back: "Mercury 🪐"
+          },
+          {
+            front: "How many legs does a spider have?",
+            back: "8 🕷️"
+          },
+          {
+            front: "Who discovered gravity?",
+            back: "Isaac Newton 🍏"
+          },
+          {
+            front: "What is the national bird of the United States?",
+            back: "Bald Eagle 🦅"
+          },
+          {
+            front: "What is the hardest natural substance on Earth?",
+            back: "Diamond 💎"
+          },
+          {
+            front: "Which gas is most abundant in Earth's atmosphere?",
+            back: "Nitrogen 🌬️"
+          },
+          {
+            front: "What is the main ingredient in sushi?",
+            back: "Rice 🍣"
+          },
+          {
+            front: "How many players are on a soccer team?",
+            back: "11 ⚽"
+          },
+          {
+            front: "What is the national flower of Japan?",
+            back: "Cherry Blossom 🌸"
+          },
+          {
+            front: "What is the tallest mountain in the world?",
+            back: "Mount Everest 🏔️"
+          },
+          {
+            front: "How many bones are in the adult human body?",
+            back: "206 🦴"
+          },
+          {
+            front: "What is the boiling point of water in Celsius?",
+            back: "100°C 🌡️"
+          },
+          {
+            front: "Which element has the atomic number 1?",
+            back: "Hydrogen ⚛️"
+          },
+          {
+            front: "What is the capital of Australia?",
+            back: "Canberra 🇦🇺"
+          }
         ];
-        
-        // Shuffle the deck cards for randomness
+
+        // Shuffle the deck cards for randomness.
         const shuffledDeck = shuffleArray(deckCards);
-        
-        // Combine dummy cards and deck cards
+
+        // Combine dummy cards and deck cards.
         const allCards = [...dummyCards, ...shuffledDeck];
         displayCards(allCards);
       } catch (error) {
         console.error('Error loading deck:', error);
       }
     }
-    
+
     function displayCards(cards) {
       const container = document.getElementById('card-container');
-      cards.forEach(card => {
+      cards.forEach((card) => {
         const cardElement = document.createElement('div');
         cardElement.className = 'card';
+        // Process both front and back for images and cloze deletions.
+        const processedFront = processCloze(fixImagePaths(card.front));
+        const processedBack = processCloze(fixImagePaths(card.back));
         cardElement.innerHTML = `
-          <div class="front">${card.front}</div>
-          <div class="back">${card.back}</div>
+          <div class="front">${processedFront}</div>
+          <div class="back">${processedBack}</div>
         `;
         container.appendChild(cardElement);
       });
     }
-    
+
+    // Fix doubled quotes in image src attributes.
+    function fixImagePaths(html) {
+      return html.replace(/src=""(.*?)""/g, 'src="$1"');
+    }
+
+    // Process cloze deletions into clickable spans.
+    function processCloze(html) {
+      return html.replace(/\{\{c\d+::(.*?)\}\}/g, function(match, p1) {
+        return '<span class="cloze" onclick="toggleCloze(this)">[...]</span>' +
+               '<span class="cloze-answer" style="display:none;">' + p1 + '</span>';
+      });
+    }
+
+    // Toggle the display of the cloze answer when the cloze text is clicked.
+    function toggleCloze(element) {
+      const answer = element.nextElementSibling;
+      if (answer.style.display === 'none' || answer.style.display === '') {
+        answer.style.display = 'inline';
+      } else {
+        answer.style.display = 'none';
+      }
+    }
+
+    // Simple shuffle algorithm.
     function shuffleArray(array) {
       for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -142,7 +277,7 @@
       }
       return array;
     }
-    
+
     document.addEventListener('DOMContentLoaded', loadDeck);
   </script>
 </body>
