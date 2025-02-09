@@ -53,8 +53,8 @@
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
     }
-    /* Cloze deletion styles in glowing purple */
-    .cloze {
+    /* Hidden cloze deletions: clickable and glowing purple */
+    .cloze-hidden {
       color: #bf00ff;
       cursor: pointer;
       font-weight: bold;
@@ -63,11 +63,16 @@
       border: 1px dashed #bf00ff;
       border-radius: 4px;
     }
-    .cloze-revealed {
-      color: #bf00ff;
-      text-shadow: 0 0 10px #bf00ff;
-      padding: 2px 4px;
+    /* When a hidden cloze is revealed, it stays purple */
+    .cloze-hidden.revealed {
       border: 1px solid #bf00ff;
+    }
+    /* Revealed cloze deletions for groups not hidden: green */
+    .cloze-green {
+      color: #00ffcc;
+      text-shadow: 0 0 10px #00ffcc;
+      padding: 2px 4px;
+      border: 1px solid #00ffcc;
       border-radius: 4px;
     }
     /* Mobile adjustments */
@@ -151,7 +156,7 @@
     // Process cloze deletions.
     // This function finds all cloze markers (e.g. {{c1::...}}) in the text,
     // then chooses one cloze group (like "c1", "c2", etc.) at random to hide,
-    // while revealing the others.
+    // while revealing the others immediately in green.
     function processCloze(html) {
       const regex = /\{\{c(\d+)::(.*?)\}\}/g;
       const matches = [...html.matchAll(regex)];
@@ -171,22 +176,23 @@
         let answer = parts[0].trim();
         let hint = parts.length > 1 ? parts[1].trim() : '...';
         if (clozeNumber === hiddenGroup) {
-          // Hidden group: show clickable span with hint.
-          return '<span class="cloze" data-answer=' + JSON.stringify(answer) + '>[' + hint + ']</span>';
+          // For the chosen hidden group, output a clickable span in purple.
+          return '<span class="cloze-hidden" data-answer=' + JSON.stringify(answer) + '>[' + hint + ']</span>';
         } else {
-          // Other groups: show the answer immediately.
-          return '<span class="cloze-revealed">' + answer + '</span>';
+          // Other groups: show the answer immediately in green.
+          return '<span class="cloze-green">' + answer + '</span>';
         }
       });
     }
 
-    // Attach event listeners to all clickable cloze spans.
+    // Attach event listeners to all clickable cloze-hidden spans.
     function attachClozeListeners() {
-      const clozeSpans = document.querySelectorAll('.cloze');
+      const clozeSpans = document.querySelectorAll('.cloze-hidden');
       clozeSpans.forEach(span => {
         span.addEventListener('click', function() {
           this.innerHTML = this.dataset.answer;
-          this.className = 'cloze-revealed';
+          // Add a "revealed" class so it keeps the purple styling.
+          this.classList.add("revealed");
         });
       });
     }
